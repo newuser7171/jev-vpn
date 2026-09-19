@@ -167,18 +167,30 @@ class JevVPNTunnel:
 
             # Ad & Tracker Interception
             is_ad, category, rule = self.adblock.is_blocked(host)
+
+            # Check script paths on plain HTTP requests (e.g. /js/widget/ads.js, /pagead.js)
+            if not is_ad and method.upper() != "CONNECT":
+                lower_target = target.lower()
+                if any(p in lower_target for p in ["/ads.js", "/pagead.js", "/ad.js", "/adbanner.js"]):
+                    is_ad = True
+                    category = "Ad Script Pattern"
+                    rule = target
+
             if is_ad:
                 self.stats.record_block(host, category, rule)
                 if self._on_block_callback:
-                    self._on_block_callback({
-                        "time": time.strftime("%H:%M:%S"),
-                        "domain": host,
-                        "category": category,
-                        "rule": rule
-                    })
+                    try:
+                        self._on_block_callback({
+                            "time": time.strftime("%H:%M:%S"),
+                            "domain": host,
+                            "category": category,
+                            "rule": rule
+                        })
+                    except Exception:
+                        pass
 
                 if method.upper() == "CONNECT":
-                    # Close connection or send 403 Forbidden to neutralize ad
+                    # Send 403 Forbidden to neutralize ad tunnel cleanly
                     client_sock.sendall(b"HTTP/1.1 403 Blocked by Jev-VPN AdShield\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 else:
                     # Clean 204 No Content collapses banner without errors

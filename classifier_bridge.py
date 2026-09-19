@@ -33,6 +33,9 @@ def classify_domains_batch(
     chunk_size = 1000
     all_results = []
 
+    # Use direct opener with no proxy to avoid local proxy feedback loop
+    direct_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
     for i in range(0, len(domains), chunk_size):
         chunk = domains[i:i + chunk_size]
         payload = {
@@ -52,7 +55,7 @@ def classify_domains_batch(
         )
 
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with direct_opener.open(req, timeout=7.0) as resp:
                 data = json.load(resp)
                 raw_results = data.get("results", [])
                 for dom, res in zip(chunk, raw_results):

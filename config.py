@@ -20,7 +20,8 @@ DOH_UPSTREAM = os.environ.get("DOH_UPSTREAM", "https://1.1.1.1/dns-query")
 CLASSIFIER_ENDPOINT = os.environ.get("CLASSIFIER_ENDPOINT", "https://classifier.dev")
 USER_AGENT = "jev-vpn-shield/1.0 (Windows NT; TypeSafe Jev System One)"
 
-# Custom user filter lists
+# Master ad/tracker domain list
+BLOCKLIST_FILE = BASE_DIR / "blocklist.txt"
 WHITELIST_FILE = BASE_DIR / "whitelist.txt"
 CUSTOM_BLOCKLIST_FILE = BASE_DIR / "custom_blocklist.txt"
 STATS_FILE = BASE_DIR / "vpn_stats.json"

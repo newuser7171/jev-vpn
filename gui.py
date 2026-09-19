@@ -204,9 +204,14 @@ class JevVPNGUI(ctk.CTk):
         self.feed_box.see("end")
 
     def _on_ad_blocked(self, ev: Dict[str, Any]):
-        line = f"[{ev['time']}] 🚫 BLOCKED: {ev['domain']:<32} | {ev['category']} ({ev['rule']})\n"
-        self.feed_box.insert("end", line)
-        self.feed_box.see("end")
+        def update():
+            try:
+                line = f"[{ev['time']}] 🚫 BLOCKED: {ev['domain']:<32} | {ev['category']} ({ev['rule']})\n"
+                self.feed_box.insert("end", line)
+                self.feed_box.see("end")
+            except Exception:
+                pass
+        self.after(0, update)
 
     def _start_stats_updater(self):
         def loop():
