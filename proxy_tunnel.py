@@ -73,12 +73,34 @@ class JevVPNTunnel:
     def start(self):
         if self._running:
             return
-        self._running = True
 
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind((self.host, self.port))
-        self.server_socket.listen(128)
+        candidate_ports = [self.port, 8998, 8999, 10808, 10809, 18080, 0]
+        candidate_ports = list(dict.fromkeys(candidate_ports))
+        bound = False
+        last_err = None
+
+        for p in candidate_ports:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((self.host, p))
+                actual_port = sock.getsockname()[1]
+                self.port = actual_port
+                self.server_socket = sock
+                self.server_socket.listen(128)
+                bound = True
+                break
+            except Exception as e:
+                last_err = e
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+
+        if not bound:
+            raise RuntimeError(f"Unable to bind proxy tunnel to any port: {last_err}")
+
+        self._running = True
 
         def listen_loop():
             while self._running:

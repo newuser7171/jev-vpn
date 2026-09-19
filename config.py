@@ -15,7 +15,7 @@ if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
 PROXY_HOST = os.environ.get("PROXY_HOST", "127.0.0.1")
-PROXY_PORT = int(os.environ.get("PROXY_PORT", "8080"))
+PROXY_PORT = int(os.environ.get("PROXY_PORT", "8998"))
 DOH_UPSTREAM = os.environ.get("DOH_UPSTREAM", "https://1.1.1.1/dns-query")
 CLASSIFIER_ENDPOINT = os.environ.get("CLASSIFIER_ENDPOINT", "https://classifier.dev")
 USER_AGENT = "jev-vpn-shield/1.0 (Windows NT; TypeSafe Jev System One)"

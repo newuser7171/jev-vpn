@@ -156,23 +156,33 @@ class JevVPNGUI(ctk.CTk):
 
     def _check_initial_proxy_status(self):
         active, srv = is_proxy_enabled()
-        if active and str(PROXY_PORT) in srv:
-            self.is_connected = True
-            self.tunnel.start()
-            self._set_connected_state()
+        if active and ":" in srv:
+            try:
+                srv_port = int(srv.split(":")[-1])
+                self.tunnel.port = srv_port
+                self.is_connected = True
+                self.tunnel.start()
+                self._set_connected_state()
+            except Exception:
+                pass
 
     def _toggle_vpn(self):
         if not self.is_connected:
-            # Start Tunnel
-            self.tunnel.start()
-            if self.check_sys_proxy.get():
-                ok, msg = enable_system_proxy(port=PROXY_PORT)
-                if not ok:
-                    messagebox.showwarning("Proxy Warning", f"Could not set system proxy:\n{msg}")
+            try:
+                # Start Tunnel (auto-falls back if port 8998 or 8080 is busy)
+                self.tunnel.start()
+                actual_port = self.tunnel.port
 
-            self.is_connected = True
-            self._set_connected_state()
-            self._start_stats_updater()
+                if self.check_sys_proxy.get():
+                    ok, msg = enable_system_proxy(port=actual_port)
+                    if not ok:
+                        messagebox.showwarning("Proxy Warning", f"Could not set system proxy:\n{msg}")
+
+                self.is_connected = True
+                self._set_connected_state()
+                self._start_stats_updater()
+            except Exception as e:
+                messagebox.showerror("VPN Error", f"Failed to start Jev-VPN Tunnel:\n{e}")
         else:
             # Stop Tunnel
             self.tunnel.stop()
@@ -181,9 +191,10 @@ class JevVPNGUI(ctk.CTk):
             self._set_disconnected_state()
 
     def _set_connected_state(self):
+        port = self.tunnel.port
         self.btn_connect.configure(text="⏹ DISCONNECT VPN & ADSHIELD", fg_color="#da3633", hover_color="#f85149")
-        self.status_badge.configure(text="● PROTECTED (ACTIVE)", text_color="#3fb950")
-        self.feed_box.insert("end", f"[{time.strftime('%H:%M:%S')}] 🛡️ Jev-VPN Privacy Tunnel Connected. Local proxy active on 127.0.0.1:{PROXY_PORT}.\n")
+        self.status_badge.configure(text=f"● PROTECTED ({port})", text_color="#3fb950")
+        self.feed_box.insert("end", f"[{time.strftime('%H:%M:%S')}] 🛡️ Jev-VPN Privacy Tunnel Connected. Local proxy active on 127.0.0.1:{port}.\n")
         self.feed_box.see("end")
 
     def _set_disconnected_state(self):
