@@ -1,12 +1,15 @@
 import sys
 import time
+import json
 import threading
+import subprocess
+from pathlib import Path
 from typing import Dict, Any
 
 import customtkinter as ctk
 from tkinter import messagebox
 
-from config import PROXY_HOST, PROXY_PORT
+from config import PROXY_HOST, PROXY_PORT, STATS_FILE
 from proxy_tunnel import JevVPNTunnel
 from adblock_engine import AdBlockEngine
 from system_proxy import enable_system_proxy, disable_system_proxy, is_proxy_enabled
@@ -19,8 +22,8 @@ class JevVPNGUI(ctk.CTk):
         super().__init__()
 
         self.title("Jev-VPN: Autonomous AI Privacy Tunnel & Smart Ad/Tracker Shield")
-        self.geometry("1100x750")
-        self.minsize(950, 650)
+        self.geometry("1100x780")
+        self.minsize(950, 680)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -81,16 +84,27 @@ class JevVPNGUI(ctk.CTk):
             hover_color="#2ea043",
             command=self._toggle_vpn
         )
-        self.btn_connect.grid(row=0, column=0, columnspan=2, padx=25, pady=(20, 10), sticky="ew")
+        self.btn_connect.grid(row=0, column=0, padx=(25, 10), pady=(18, 10), sticky="ew")
+
+        self.btn_browser = ctk.CTkButton(
+            ctrl_card,
+            text="🌐 OPEN PROTECTED BROWSER",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            height=50,
+            fg_color="#1f6feb",
+            hover_color="#388bfd",
+            command=self._open_protected_browser
+        )
+        self.btn_browser.grid(row=0, column=1, padx=(10, 25), pady=(18, 10), sticky="ew")
 
         self.check_sys_proxy = ctk.CTkCheckBox(
             ctrl_card,
-            text="Route all Windows apps & browsers (Edge, Chrome, Firefox, Spotify) through tunnel",
+            text="Enforce Windows System Proxy (all apps, Chrome, Edge, Spotify routed via tunnel)",
             font=ctk.CTkFont(size=12),
             text_color="#c9d1d9"
         )
         self.check_sys_proxy.select()
-        self.check_sys_proxy.grid(row=1, column=0, columnspan=2, padx=25, pady=(0, 15))
+        self.check_sys_proxy.grid(row=1, column=0, columnspan=2, padx=25, pady=(0, 14), sticky="w")
 
         # -------------------------------------------------------------
         # 3. 4 Stat Cards
@@ -160,9 +174,10 @@ class JevVPNGUI(ctk.CTk):
             try:
                 srv_port = int(srv.split(":")[-1])
                 self.tunnel.port = srv_port
-                self.is_connected = True
                 self.tunnel.start()
+                self.is_connected = True
                 self._set_connected_state()
+                self._start_stats_updater()
             except Exception:
                 pass
 
@@ -189,6 +204,37 @@ class JevVPNGUI(ctk.CTk):
             disable_system_proxy()
             self.is_connected = False
             self._set_disconnected_state()
+
+    def _open_protected_browser(self):
+        """
+        Launches Google Chrome (or Microsoft Edge) explicitly configured to route 100%
+        of traffic through the Jev-VPN tunnel. Bypasses any cached sockets or QUIC UDP.
+        """
+        if not self.is_connected:
+            self._toggle_vpn()
+
+        port = self.tunnel.port
+        candidates = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+        ]
+
+        target_url = "https://adblock.turtlecute.org/"
+        for exe in candidates:
+            if Path(exe).exists():
+                cmd = [exe, f"--proxy-server=http://127.0.0.1:{port}", target_url]
+                try:
+                    subprocess.Popen(cmd)
+                    self.feed_box.insert("end", f"[{time.strftime('%H:%M:%S')}] 🌐 Launched Protected Browser ({Path(exe).name}) routed through 127.0.0.1:{port}\n")
+                    self.feed_box.see("end")
+                    return
+                except Exception as e:
+                    messagebox.showerror("Launch Error", f"Failed to launch browser:\n{e}")
+                    return
+
+        messagebox.showinfo("Browser Info", f"Jev-VPN is active on 127.0.0.1:{port}.\nPlease open Chrome and navigate to {target_url}")
 
     def _set_connected_state(self):
         port = self.tunnel.port
@@ -221,6 +267,14 @@ class JevVPNGUI(ctk.CTk):
                 self.card_trackers.configure(text=str(st["trackers_blocked"]))
                 self.card_saved.configure(text=f"{st['saved_mb']} MB")
                 self.card_total.configure(text=str(st["total_requests"]))
+                
+                # Persist to disk
+                try:
+                    with open(STATS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(st, f, indent=2)
+                except Exception:
+                    pass
+
                 time.sleep(1.5)
 
         threading.Thread(target=loop, daemon=True).start()
@@ -232,7 +286,6 @@ class JevVPNGUI(ctk.CTk):
         
         is_blocked, cat, rule = self.adblock.is_blocked(dom, enable_ai=True)
         status = "🚫 BLOCKED" if is_blocked else "✅ ALLOWED"
-        color = "#ff7b72" if is_blocked else "#3fb950"
         
         self.feed_box.insert("end", f"\n[DOMAIN TEST] {dom} -> {status} [{cat}] (Rule: {rule})\n")
         self.feed_box.see("end")
